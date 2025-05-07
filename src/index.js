@@ -1,5 +1,5 @@
 import '@playcanvas/web-components';
-import { shaderChunks, Asset, BoundingBox, Color, EventHandler, Mat4, MiniStats, Vec3, Quat, Entity, BoundingSphere,Layer,StandardMaterial,BLEND_NORMAL} from 'playcanvas';
+import { shaderChunks, Asset, BoundingBox, Color, EventHandler, Mat4, MiniStats, Vec3, Quat, Entity, BoundingSphere,Layer,StandardMaterial,BLEND_NORMAL, BLEND_SUBTRACTIVE, BLEND_ADDITIVEALPHA} from 'playcanvas';
 import { XrControllers } from 'playcanvas/scripts/esm/xr-controllers.mjs';
 import { XrNavigation } from 'playcanvas/scripts/esm/xr-navigation.mjs';
 
@@ -118,13 +118,52 @@ class Viewer {
         this.state = state;
         this.settings = settings;
 
-        // disable auto render, we'll render only when camera changes
+        // Disable auto render – only render on camera change
         app.autoRender = false;
 
-        // apply camera animation settings
+        // Create and insert a new layer after the World layer
+        const frontLayer = new Layer({ name: 'Front Layer' });
+        const worldLayer = app.scene.layers.getLayerByName('World');
+        const worldLayerIdx = app.scene.layers.getTransparentIndex(worldLayer);
+        app.scene.layers.insert(frontLayer, worldLayerIdx + 1);
+
+        // Set the camera to render both World and Front Layer
         entity.camera.clearColor = new Color(background.color);
         entity.camera.fov = camera.fov;
-        //entity.camera.farClip = 20;
+        entity.camera.layers = [worldLayer.id, frontLayer.id];
+
+        // Create omni light affecting both layers
+        const light = new Entity();
+        light.addComponent('light', {
+            type: 'omni',
+            color: new Color(1, 1, 1),
+            range: 100,
+            layers: [worldLayer.id, frontLayer.id]
+        });
+        light.setLocalPosition(5, 0, 15);
+        app.root.addChild(light);
+
+        // Create semi-transparent red material
+        const redMaterial = new StandardMaterial();
+        redMaterial.emissive.set(0, 1, 0); // Bright green
+        redMaterial.emissiveIntensity = 1;
+        redMaterial.blendType = BLEND_NORMAL;
+        redMaterial.opacity = 0.5;
+        redMaterial.update();
+        redMaterial.useLighting=false;
+
+        // Add red box to both layers
+        const redBox = new Entity();
+        redBox.addComponent('render', {
+            type: 'box',
+            material: redMaterial,
+            layers: [worldLayer.id, frontLayer.id]
+        });
+        redBox.setLocalPosition(0.3, 4.2, -0.8);
+        redBox.setLocalEulerAngles(0, -22, 0);
+        redBox.setLocalScale(0.74, 0.24, 0.75);
+        app.root.addChild(redBox);
+        loadBoxGLB(app, [worldLayer.id, frontLayer.id]);
 
         // handle horizontal fov on canvas resize
         const updateHorizontalFov = () => {
@@ -740,7 +779,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     
-    //loadBoxGLB(app, settings);
+
     loadBoxGLBlayer(app);
 
     // construct ministats
@@ -1217,22 +1256,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-const loadBoxGLB = (app,settings) => {
-
-    const asset = new Asset('boundingBox', 'model', {
-        url: settings.box_url
+const loadBoxGLB = (app, layers) => {
+    const asset = new Asset('boundingBox', 'container', {
+        url: "./playground.glb"
     });
 
     asset.on('load', () => {
-        const entity = new Entity('BoundingBox');
-        entity.addComponent('model', {
-            type: 'asset',
-            asset: asset
+        // Create an instance of the loaded GLB scene
+        const glbEntity = asset.resource.instantiateRenderEntity();
+        glbEntity.name = 'BoundingBox';
+       // glbEntity.setLocalPosition(0, 0, 0); // Set position if needed
+
+        // Set layers if required
+        glbEntity.forEach((child) => {
+            if (child.render) {
+                child.render.layers = layers;
+            }
         });
-        app.root.addChild(entity);
-        window.boundsMeshInstance = asset.resource.meshInstances[0];
+
+        // Create green unlit emissive material
+        const greenUnlit = new StandardMaterial();
+        greenUnlit.useLighting = false;
+        greenUnlit.opacity=.4;
+        greenUnlit.emissive.set(0, 1, 0); // Bright green
+        greenUnlit.emissiveIntensity = 1;
+        greenUnlit.blendType = BLEND_NORMAL;
+        greenUnlit.update();
+        
 
 
+        // Apply material to all mesh instances
+        glbEntity.forEach((child) => {
+            if (child.render) {
+                child.render.meshInstances.forEach((mi) => {
+                    mi.material = greenUnlit;
+                });
+            }
+        });
+
+        // Add to scene
+        app.root.addChild(glbEntity);
     });
 
     app.assets.add(asset);
@@ -1240,65 +1303,10 @@ const loadBoxGLB = (app,settings) => {
 };
 
 
-
+ 
 const loadBoxGLBlayer = (app) => {
 
-    const layer = new Layer({
-        name: 'Front Layer'
-    });
-    
-    // get the world layer index
-    const worldLayer = app.scene.layers.getLayerByName('World');
-    const idx = app.scene.layers.getTransparentIndex(worldLayer);
-    
-    // insert the new layer after the world layer
-    app.scene.layers.insert(layer, idx + 1);
-    
-    // Create an Entity with a camera component
-    // Make sure it renders both World and Front Layer
-    // const camera = new Entity();
-    // camera.addComponent('camera', {
-    //     clearColor: new Color(0.4, 0.45, 0.5),
-    //     layers: [worldLayer.id, layer.id]
-    // });
-    // camera.translate(0, 0, 24);
-    // app.root.addChild(camera);
-    
-    // Create an Entity with a omni light component
-    // Make sure it lights both World and Front Layer
-    // const light = new Entity();
-    // light.addComponent('light', {
-    //     type: 'omni',
-    //     color: new Color(1, 1, 1),
-    //     range: 100,
-    //     layers: [worldLayer.id, layer.id]
-    // });
-    // light.translate(5, 0, 15);
-    // app.root.addChild(light);
-    
-    // red material is semi-transparent
-    const red = new StandardMaterial();
-    red.diffuse.set(1, 1, 1);
-    red.blendType = BLEND_NORMAL;
-    red.opacity = 0.5;
-    red.update();
-    red.useLighting=false;
-    
-    // blue material does not test the existing depth buffer
-    const blue = new StandardMaterial();
-    blue.diffuse.set(0, 0, 1);
-    blue.depthTest = false;
-    blue.update();
-    
-    // red box is rendered first in World layer
-    const redBox = new Entity();
-    redBox.addComponent('render', {
-        type: 'box',
-        material: red,
-        layers: [worldLayer.id, layer.id]
-    });
-    redBox.setLocalScale(.3, .2, .2);
-    app.root.addChild(redBox);
+
     
     // blue box is rendered in the Front Layer which is after World
     // because it does not test for depth
@@ -1314,4 +1322,3 @@ const loadBoxGLBlayer = (app) => {
     // app.root.addChild(blueBox);
     // console.log("Added");
 }
-

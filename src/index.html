@@ -4,15 +4,16 @@
         <title>SuperSplat Viewer</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-        <base href="/">
+        <base href="">
         <link rel="stylesheet" href="./index.css">
         <script type="module">
             const url = new URL(location.href);
             const settingsUrl = url.searchParams.has('settings') ? url.searchParams.get('settings') : './settings.json';
-            const contentUrl = url.searchParams.has('content') ? url.searchParams.get('content') : './point_cloud_3.compressed.ply';
+            const contentUrl = url.searchParams.has('content') ? url.searchParams.get('content') : './scene.compressed.ply';
             window.sse = {
                 settings: fetch(settingsUrl).then(response => response.json()),
                 contentUrl,
+                contents: fetch(contentUrl),
                 params: {}
             };
         </script>
@@ -24,7 +25,7 @@
                 <!-- Camera (with XR support) -->
                 <pc-entity name="camera root">
                     <pc-entity name="camera">
-                        <pc-camera near-clip="0.001" far-clip="5000" horizontal-fov="true" tonemap="none"></pc-camera>
+                        <pc-camera near-clip="0.00001" far-clip="50" horizontal-fov="true" tonemap="none"></pc-camera>
                     </pc-entity>
                     <!-- XR controllers will be added here -->
                     <pc-scripts>
@@ -92,7 +93,7 @@
             <div id="settingsPanel" class="hidden">
                 <div>Camera Mode</div>
                 <div id="cameraToggle" class="toggleWrap">
-                    <div id="cameraToggleHighlight" class="toggleHighlight right"></div>
+                    <div id="cameraToggleHighlight" class="toggleHighlight"></div>
                     <button id="orbit" class="left">Orbit</button>
                     <button id="fly" class="right">Fly</button>
                 </div>
@@ -107,12 +108,6 @@
                     <button id="frame" class="button">Frame</button>
                     <button id="reset" class="button">Reset</button>
                 </div>
-                <div>BBox</div>
-                <div id="bboxToggle" class="toggleWrap">
-                    <div id="bboxToggleHighlight" class="toggleHighlight right"></div>
-                    <button id="lock" class="left">Lock</button>
-                    <button id="unlock" class="right">Free</button>
-                </div>                
             </div>
 
             <!-- Info Panel -->
@@ -201,9 +196,6 @@
             <div id="joystickBase" class="hidden">
                 <div id="joystick"></div>
             </div>
-            <div id="joystickBaseRight" class="hidden">
-                <div id="joystickRight"></div>
-            </div>            
         </div>
     </body>
 </html>

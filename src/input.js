@@ -53,16 +53,15 @@ class AdditiveInput extends Input {
 
 // joystick sums input deltas based on stick position
 class Joystick extends Input {
-    constructor(multiplier = 1) {
+    constructor() {
         super();
         this.stick = [0, 0, 0];
-        this.multiplier = multiplier;
     }
 
     update(dt) {
-        const { value, stick, multiplier } = this;
+        const { value, stick } = this;
         for (let i = 0; i < 3; ++i) {
-            value[i] += stick[i] * dt * multiplier;
+            value[i] += stick[i] * dt;
         }
     }
 }
@@ -120,8 +119,8 @@ class TouchInput extends Input {
 
 // tracks a touch input and converts it to a joystick input
 class TouchJoystick extends Joystick {
-    constructor(multiplier = 1) {
-        super(multiplier);
+    constructor() {
+        super();
         this.id = null;
         this.base = [0, 0, 0];
     }
@@ -153,47 +152,48 @@ class TouchJoystick extends Joystick {
 // track two touch inputs and convert them into 2 inputs
 class TouchController {
     constructor() {
-            const first = new TouchInput();
-            const second = new TouchInput();
-            const twoTouch = new TwoTouchInput(first, second);
-    
-            this.pointerDown = (event, element) => {
-                if (first.id === null) {
-                    first.down(event.pointerId, event.clientX, event.clientY);
-                    element.setPointerCapture(event.pointerId);
-                } else if (second.id === null) {
-                    second.down(event.pointerId, event.clientX, event.clientY);
-                    element.setPointerCapture(event.pointerId);
-                }
-            };
-    
-            this.pointerMove = (event) => {
-                if (event.pointerId === first.id) {
-                    first.move(event.clientX, event.clientY);
-                } else if (event.pointerId === second.id) {
-                    second.move(event.clientX, event.clientY);
-                }
-            };
-    
-            this.pointerUp = (event, element) => {
-                if (event.pointerId === first.id) {
-                    first.up();
-                    element.releasePointerCapture(event.pointerId);
-                } else if (event.pointerId === second.id) {
-                    second.up();
-                    element.releasePointerCapture(event.pointerId);
-                }
-            };
-    
-            this.pointerCancel = this.pointerUp;
-    
-            // public interface
-            this.left = twoTouch;   // For zoom via pinch (z axis)
-            this.right = first;     // For rotation (if pinch not active)
-            this.pinchActive = () => twoTouch.active;
-        }
-}
+        const left = new TouchJoystick();
+        const right = new TouchInput();
 
+        const get = (id) => {
+            return id === left.id ? left : (id === right.id ? right : null);
+        };
+
+        this.pointerDown = (event, element) => {
+            const isLeft = event.clientX < element.getBoundingClientRect().width / 2;
+            const joy = isLeft ? (left.id === null && left) : (right.id === null && right);
+
+            if (joy) {
+                joy.down(event.pointerId, event.clientX, event.clientY);
+            }
+
+            if (isLeft) {
+                element.setPointerCapture(event.pointerId);
+            }
+        };
+
+        this.pointerMove = (event) => {
+            const joy = get(event.pointerId);
+            if (joy) {
+                joy.move(event.clientX, event.clientY);
+            }
+        };
+
+        this.pointerUp = (event, element) => {
+            const joy = get(event.pointerId);
+            if (joy) {
+                joy.up();
+                if (joy === left) {
+                    element.releasePointerCapture(event.pointerId);
+                }
+            }
+        };
+
+        // public interface
+        this.left = left;
+        this.right = right;
+    }
+}
 
 // track two touch inputs and convert into 3d input when both are active
 // x and y axis is two-touch translation
@@ -367,7 +367,7 @@ class DesktopController {
             arrowup: 'lookup',
             arrowdown: 'lookdown'
         };
-        
+
         const mouseInput = new MouseInput();
         const leftKeys = new DampedJoystick();
         const rightKeys = new DampedJoystick();
@@ -451,10 +451,9 @@ class AppController {
         this.orbit = new OrbitTouchController();
         this.desktop = new DesktopController();
 
-        this.right = new AdditiveInput(this.touch.right, this.orbit.right, this.desktop.right); // Rotation
-        this.left = new AdditiveInput(this.touch.left, this.orbit.left, this.desktop.left);      // Movement / Zoom
-
-        this.pinchActive = () => this.touch.pinchActive();  // Expose pinch state
+        // final left and right inputs are the sum of supported possible inputs
+        this.left = new AdditiveInput(this.touch.left, this.orbit.left, this.desktop.left);
+        this.right = new AdditiveInput(this.touch.right, this.orbit.right, this.desktop.right);
 
         this.update = (dt) => {
             this.left.update(dt);

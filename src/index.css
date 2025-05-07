@@ -334,24 +334,3 @@ button:active {
 
     background-color: #fff8;
 }
-
-#joystickBaseRight {
-    position: absolute;
-    width: 96px;
-    height: 96px;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    touch-action: none;
-    background: radial-gradient(circle at center, #0000 50%, #000f 100%);
-    background-color: #0002;
-}
-
-#joystickBaseRight > #joystickRight {
-    position: absolute;
-    width: 48px;
-    height: 48px;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    touch-action: none;
-    background-color: #fff8;
-}
