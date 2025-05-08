@@ -1,5 +1,5 @@
 import '@playcanvas/web-components';
-import { shaderChunks, Asset, BoundingBox, Color, EventHandler, Mat4, MiniStats, Vec3, Quat, Entity, BoundingSphere,Layer,StandardMaterial,BLEND_NORMAL, BLEND_SUBTRACTIVE, BLEND_ADDITIVEALPHA} from 'playcanvas';
+import { WasmModule,shaderChunks, Asset, BoundingBox, Color, EventHandler, Mat4, MiniStats, Vec3, Quat, Entity, BoundingSphere,Layer,StandardMaterial,BLEND_NORMAL, EVENT_MOUSEDOWN } from 'playcanvas';
 import { XrControllers } from 'playcanvas/scripts/esm/xr-controllers.mjs';
 import { XrNavigation } from 'playcanvas/scripts/esm/xr-navigation.mjs';
 
@@ -12,6 +12,10 @@ import { OrbitCamera } from './orbit-camera.js';
 import { Picker } from './picker.js';
 import { PointerDevice } from './pointer-device.js';
 import { Pose } from './pose.js';
+
+
+
+
 
 
 const url = new URL(location.href);
@@ -144,26 +148,28 @@ class Viewer {
         app.root.addChild(light);
 
         // Create semi-transparent red material
-        const redMaterial = new StandardMaterial();
-        redMaterial.emissive.set(0, 1, 0); // Bright green
-        redMaterial.emissiveIntensity = 1;
-        redMaterial.blendType = BLEND_NORMAL;
-        redMaterial.opacity = 0.5;
-        redMaterial.update();
-        redMaterial.useLighting=false;
+        // const redMaterial = new StandardMaterial();
+        // redMaterial.emissive.set(0, 1, 0); // Bright green
+        // redMaterial.emissiveIntensity = 1;
+        // redMaterial.blendType = BLEND_NORMAL;
+        // redMaterial.opacity = 0.5;
+        // redMaterial.update();
+        // redMaterial.useLighting=false;
 
-        // Add red box to both layers
-        const redBox = new Entity();
-        redBox.addComponent('render', {
-            type: 'box',
-            material: redMaterial,
-            layers: [worldLayer.id, frontLayer.id]
-        });
-        redBox.setLocalPosition(0.3, 4.2, -0.8);
-        redBox.setLocalEulerAngles(0, -22, 0);
-        redBox.setLocalScale(0.74, 0.24, 0.75);
-        app.root.addChild(redBox);
-        loadBoxGLB(app, [worldLayer.id, frontLayer.id]);
+        // // Add red box to both layers
+        // const redBox = new Entity();
+        // redBox.addComponent('render', {
+        //     type: 'box',
+        //     material: redMaterial,
+        //     layers: [worldLayer.id, frontLayer.id]
+        // });
+        // redBox.setLocalPosition(0.3, 4.2, -0.8);
+        // redBox.setLocalEulerAngles(0, -22, 0);
+        // redBox.setLocalScale(0.74, 0.24, 0.75);
+        // app.root.addChild(redBox);
+
+
+        loadBoxGLB(app, [worldLayer.id, frontLayer.id],events);
 
         // handle horizontal fov on canvas resize
         const updateHorizontalFov = () => {
@@ -216,6 +222,13 @@ class Viewer {
 
         // initialize the viewer after assets have finished loading
         events.on('loaded', () => this.initialize());
+
+        events.on('inputEvent', (type, data) => {
+            if (type === 'glbClick') {
+                console.log("GLB mesh clicked:", data.name);
+            }
+        });
+        
     }
 
     // initialize the viewer once gsplat asset is finished loading (so we know its bound etc)
@@ -725,9 +738,23 @@ const loadContent = (appElement) => {
 
     app.assets.add(asset);   
     app.assets.load(asset);
+    
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+
+    await new Promise((resolve) => {
+        WasmModule.setConfig('Ammo', {
+            glueUrl: '/lib/ammo/ammo.wasm.js',
+            wasmUrl: '/lib/ammo/ammo.wasm.wasm',
+            fallbackUrl: '/lib/ammo/ammo.js'
+        });
+
+        WasmModule.getInstance('Ammo', () => {
+            console.log("✅ Ammo.js loaded and initialized.");
+            resolve();
+        });
+    });
     const appElement = document.querySelector('pc-app');
     const app = (await appElement.ready()).app;
 
@@ -1256,52 +1283,82 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-const loadBoxGLB = (app, layers) => {
+const loadBoxGLB = (app, layers, events) => {
     const asset = new Asset('boundingBox', 'container', {
         url: "./playground.glb"
     });
 
     asset.on('load', () => {
-        // Create an instance of the loaded GLB scene
         const glbEntity = asset.resource.instantiateRenderEntity();
         glbEntity.name = 'BoundingBox';
-       // glbEntity.setLocalPosition(0, 0, 0); // Set position if needed
-
-        // Set layers if required
-        glbEntity.forEach((child) => {
-            if (child.render) {
-                child.render.layers = layers;
-            }
-        });
 
         // Create green unlit emissive material
         const greenUnlit = new StandardMaterial();
         greenUnlit.useLighting = false;
-        greenUnlit.opacity=.4;
+        greenUnlit.opacity = 0.4;
         greenUnlit.emissive.set(0, 1, 0); // Bright green
         greenUnlit.emissiveIntensity = 1;
         greenUnlit.blendType = BLEND_NORMAL;
         greenUnlit.update();
-        
 
-
-        // Apply material to all mesh instances
+        // Traverse children
         glbEntity.forEach((child) => {
             if (child.render) {
+                console.log("Loaded mesh:", child.name);
+
+                // Set layer
+                child.render.layers = layers;
+
+                // Apply material
                 child.render.meshInstances.forEach((mi) => {
                     mi.material = greenUnlit;
                 });
+
+                // Add collision
+                if (!child.collision) {
+                    child.addComponent('collision', {
+                        type: 'mesh'
+                    });
+                } 
+
+                // Add rigidbody
+                if (!child.rigidbody) {
+                    child.addComponent('rigidbody', {
+                        type: 'static'
+                    });
+                }
             }
         });
 
         // Add to scene
         app.root.addChild(glbEntity);
+
+        // Add click handler (once loaded)
+        app.mouse.on(EVENT_MOUSEDOWN, (event) => {
+            console.log("Mouse clicked at:", event.x, event.y);  // ✅
+
+            const cameraEntity = app.root.findByName('camera');           
+            if (!cameraEntity) return;
+
+            const camera = cameraEntity.camera;
+            const from = camera.screenToWorld(event.x, event.y, camera.nearClip);            
+            const to = camera.screenToWorld(event.x, event.y, camera.farClip);
+            console.log("FROM POSITION", from);
+            console.log("TO POSITION", to);
+            const body = app.root.findByName('BoundingBox');
+            console.log(body.rigidbody?.body); // Should not be undefined
+
+            const result = app.systems.rigidbody.raycastFirst(from, to);
+            if (result && result.entity) {
+                console.log("Clicked entity:", result.entity.name);
+                if (events) events.fire('inputEvent', 'glbClick', result.entity);
+            }
+        });
     });
 
     app.assets.add(asset);
     app.assets.load(asset);
 };
-
 
  
 const loadBoxGLBlayer = (app) => {
