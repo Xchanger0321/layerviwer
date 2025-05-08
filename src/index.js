@@ -755,8 +755,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             resolve();
         });
     });
-    const appElement = document.querySelector('pc-app');
+
+    
+    const appElement = document.querySelector('pc-app'); // CREATOR
     const app = (await appElement.ready()).app;
+
 
     loadContent(appElement);
     
@@ -1333,10 +1336,35 @@ const loadBoxGLB = (app, layers, events) => {
         // Add to scene
         app.root.addChild(glbEntity);
 
-        // Add click handler (once loaded)
-        app.mouse.on(EVENT_MOUSEDOWN, (event) => {
-            console.log("Mouse clicked at:", event.x, event.y);  // ✅
 
+
+
+
+
+
+        const box = new Entity('cube333');
+            box.addComponent('render', {
+                type: 'box'
+            });
+            box.addComponent('collision', {
+                type: 'mesh',
+                height:3,
+            });
+            
+            box.addComponent('rigidbody', {
+                type: 'static'
+            });
+            
+            app.root.addChild(box);
+            console.log("created cube with rigid body" ,box.rigidbody.body);
+
+
+
+
+
+
+        // Add click handler (once loaded)
+        app.mouse.on(EVENT_MOUSEDOWN, (event) => {           
             const cameraEntity = app.root.findByName('camera');           
             if (!cameraEntity) return;
 
@@ -1345,9 +1373,9 @@ const loadBoxGLB = (app, layers, events) => {
             const to = camera.screenToWorld(event.x, event.y, camera.farClip);
             console.log("FROM POSITION", from);
             console.log("TO POSITION", to);
-            const body = app.root.findByName('BoundingBox');
+            const body = app.root.findByName('cube333');
             console.log(body.rigidbody?.body); // Should not be undefined
-
+            
             const result = app.systems.rigidbody.raycastFirst(from, to);
             if (result && result.entity) {
                 console.log("Clicked entity:", result.entity.name);
