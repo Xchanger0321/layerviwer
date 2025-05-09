@@ -756,7 +756,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    
+
+   
     const appElement = document.querySelector('pc-app'); // CREATOR
     const app = (await appElement.ready()).app;
 
@@ -1354,7 +1355,7 @@ const loadBoxGLB = (app, layers, events) => {
             box.addComponent('rigidbody', {
                 type: 'static'
             });
-            
+            box.setLocalScale(2,3,2);
             app.root.addChild(box);
             console.log("created cube with rigid body" ,box.rigidbody.body);
 
@@ -1374,6 +1375,9 @@ const loadBoxGLB = (app, layers, events) => {
             console.log("FROM POSITION", from);
             console.log("TO POSITION", to);
             const body = app.root.findByName('cube333');
+            const vec = new Ammo.btVector3(1,1,1);
+            console.log(vec.x());
+            console.log(body.collision.height);
             console.log(body.rigidbody?.body); // Should not be undefined
             
             const result = app.systems.rigidbody.raycastFirst(from, to);
