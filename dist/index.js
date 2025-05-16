@@ -74417,6 +74417,11 @@ class Viewer {
                         this.targetPose = newPose;
                         this.transitionTimer = 0; // Reset transition timer
                         console.log("targetPose.position:", this.targetPose.position);
+
+                        const ui = document.getElementById('unit-ui');
+                        ui.style.display = 'block';
+                        
+                        
                     }
                 }
             });

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Additional UI Layer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        #additional-ui {
+            position: fixed;
+            left: max(16px, env(safe-area-inset-left));
+            right: max(16px, env(safe-area-inset-right));
+            bottom: calc(max(16px, env(safe-area-inset-bottom)) + 100px); /* Positioned above existing controls */
+            display: flex;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        #button-container {
+            background-color: rgba(0, 0, 0, 0.8); /* Black container with slight transparency */
+            border-radius: 12px;
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        .ui-button {
+            width: 80px;
+            height: 40px;
+            padding: 0;
+            color: #eee; /* Light text for contrast */
+            background-color: #333; /* Darker button background */
+            border: 1px solid #888;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: -0.25px;
+            text-align: center;
+            line-height: 40px;
+            transition: background-color 0.2s ease;
+        }
+
+        .ui-button:hover {
+            background-color: #444; /* Lighter on hover */
+        }
+
+        .ui-button:active {
+            background-color: #555; /* Even lighter when clicked */
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="additional-ui">
+        <div id="button-container">
+            <button class="ui-button" id="home-button">Home</button>
+            <button class="ui-button" id="locations-button">Locations</button>
+            <button class="ui-button" id="amenities-button">Amenities</button>
+            <button class="ui-button" id="gallery-button">Gallery</button>
+        </div>
+    </div>
+</body>
+</html>

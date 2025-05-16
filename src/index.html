@@ -20,9 +20,24 @@
         <script type="module" src="./index.js"></script>
     </head>
     <body>
+        <img
+            id="unit-ui"
+            src="info.webp"
+            style="
+                display: none;
+                position: absolute;
+                top: 50%;
+                right: 500px;
+                transform: translateY(-50%);
+                width: 500px;
+                pointer-events: none;
+                z-index: 1000;
+            "
+        />
+
         <pc-app antialias="false" depth="true" high-resolution="true" stencil="false">
             <pc-scene>
-                <!-- Camera (with XR support) -->
+                <!-- Camera ( with XR support ) -->
                 <pc-entity name="camera root">
                     <pc-entity name="camera">
                         <pc-camera near-clip="0.00001" far-clip="50" horizontal-fov="true" tonemap="none"></pc-camera>
@@ -31,7 +46,7 @@
                     <pc-scripts>
                     </pc-scripts>
                 </pc-entity>
-                <!-- Light (for XR controllers) -->
+                <!-- Light ( for XR controllers ) -->
                 <pc-entity name="light" rotation="35 45 0">
                     <pc-light color="white" intensity="1.5"></pc-light>
                 </pc-entity>
@@ -51,7 +66,6 @@
             </div>
 
             <div id="controlsWrap" class="faded-in">
-
                 <!-- Timeline Panel -->
                 <div id="timelineContainer" class="hidden">
                     <div id="line"></div>
@@ -195,6 +209,16 @@
             <!-- Touch Joystick -->
             <div id="joystickBase" class="hidden">
                 <div id="joystick"></div>
+            </div>
+
+            <!-- Additional UI Layer -->
+            <div id="additional-ui">
+                <div id="additional-button-container">
+                    <button class="ui-button" id="home-button">Home</button>
+                    <button class="ui-button" id="locations-button">Locations</button>
+                    <button class="ui-button" id="amenities-button">Amenities</button>
+                    <button class="ui-button" id="gallery-button">Gallery</button>
+                </div>
             </div>
         </div>
     </body>
