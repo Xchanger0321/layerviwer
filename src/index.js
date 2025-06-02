@@ -87,6 +87,12 @@ const v = new Vec3();
 const pose = new Pose();
 
 window.bblock = false;
+window.onHomeClick = onHomeClick;
+window.onAmenitiesClick = onAmenitiesClick;
+window.onSurroundingsClick = onSurroundingsClick;
+window.onUnitSearchClick = onUnitSearchClick;
+window.onViewClick = onViewClick;
+window.onFlyClick = onFlyClick;
 
 class Viewer {
     constructor(app, entity, events, state, settings) {
@@ -98,26 +104,29 @@ class Viewer {
         this.events = events;
         this.state = state;
         this.settings = settings;
-        this.skipUpdate = false; // Flag to skip update loop after click
-        this.targetPose = null; // Target pose for smooth transition
-        this.transitionTimer = 0; // Timer for POI lerp transition
-        this.POISpeed = .2; // Exposed variable to control transition speed (higher = faster)
-        this.transitionDuration = 1 / this.POISpeed; // Duration of POI transition in seconds
-        this.cameraTransitionDuration = this.transitionDuration; // Duration for camera mode transitions
+        this.skipUpdate = false;
+        this.targetPose = null;
+        this.transitionTimer = 0;
+        this.POISpeed = 0.2;
+        this.transitionDuration = 1 / this.POISpeed;
+        this.cameraTransitionDuration = this.transitionDuration;
 
         // Initialize camera instances
         this.cameras = {
             orbit: new OrbitCamera(),
             fly: new FlyCamera(),
-            // anim: createAnimCamera(userStart, isObjectExperience), // Uncomment if animCamera is defined
         };
 
         // Disable auto render – only render on camera change
         app.autoRender = true;
 
-        // Create and insert a new layer after the World layer
-        const frontLayer = new Layer({ name: 'Front Layer' });
+        // Create and configure layers
         const worldLayer = app.scene.layers.getLayerByName('World');
+        const frontLayer = new Layer({ 
+            name: 'Front Layer',
+            transparentSortMode: 'back2front',
+            enabled: true
+        });
         const worldLayerIdx = app.scene.layers.getTransparentIndex(worldLayer);
         app.scene.layers.insert(frontLayer, worldLayerIdx + 1);
 
@@ -125,8 +134,6 @@ class Viewer {
         entity.camera.clearColor = new Color(background.color);
         entity.camera.fov = camera.fov;
         entity.camera.layers = [worldLayer.id, frontLayer.id];
-
-  
 
         const greenUnlit = new StandardMaterial();
         greenUnlit.useLighting = false;
@@ -155,6 +162,32 @@ class Viewer {
 
         const boxes = [];
 
+        // Configure water material with proper transparency and depth settings
+        const waterMaterial = new StandardMaterial();
+        waterMaterial.diffuse.set(0.2, 0.3, 0.8);
+        waterMaterial.blendType = BLEND_NORMAL;
+        waterMaterial.opacity = 0.7;
+        waterMaterial.depthWrite = false;
+        waterMaterial.depthTest = true;
+        waterMaterial.shininess = 100;
+        waterMaterial.metalness = 1;
+        waterMaterial.reflectivity = 1;
+        waterMaterial.useMetalness = true;
+        waterMaterial.depthBias = 0.001; // Small depth offset to reduce z-fighting
+        waterMaterial.update();
+
+        // Ground cube entity (water plane)
+        const groundCube = new Entity('WaterPlane');
+        groundCube.addComponent('render', {
+            type: 'plane',
+            material: waterMaterial
+        });
+        groundCube.render.material = waterMaterial;
+        groundCube.setLocalScale(2000, 1, 2000);
+        groundCube.setLocalPosition(0, -1.99, 0); // Slight offset to avoid z-fighting
+        groundCube.render.layers = [frontLayer.id];
+        app.root.addChild(groundCube);
+
         transforms.forEach((data) => {
             const box = new Entity(data.name);
             box.addComponent('render', { type: 'box' });
@@ -162,7 +195,7 @@ class Viewer {
             box.setLocalScale(...data.scale);
             box.setEulerAngles(...data.rotation);
             box.render.material = greenUnlit;
-            box.render.layers = [worldLayer.id, frontLayer.id];
+            box.render.layers = [worldLayer.id];
             box.userData = {
                 isBig: false,
                 originalScale: new Vec3(...data.scale),
@@ -188,30 +221,25 @@ class Viewer {
                     if (aabb.intersectsRay(ray)) {
                         console.log(`Moving camera to ${box.name}`);
 
-                        // Create pose to look at box's front position
                         const targetPos = new Vec3(...box.userData.front);
                         const boxPos = box.getPosition();
 
                         const newPose = new Pose().fromLookAt(
-                            new Vec3(...box.userData.front), // camera position
-                            boxPos                           // target position
+                            new Vec3(...box.userData.front),
+                            boxPos
                         );
 
-                        // Force camera mode to fly if not already
                         if (state.cameraMode !== 'fly') {
                             events.fire('cameraMode:changed', 'fly', state.cameraMode);
                             state.cameraMode = 'fly';
                         }
 
-                        // Set target pose for smooth transition
                         this.targetPose = newPose;
-                        this.transitionTimer = 0; // Reset transition timer
+                        this.transitionTimer = 0;
                         console.log("targetPose.position:", this.targetPose.position);
 
-                        const ui = document.getElementById('unit-ui');
+                        const ui = document.getElementById('spawned-widget');
                         ui.style.display = 'block';
-                        
-                        
                     }
                 }
             });
@@ -250,23 +278,19 @@ class Viewer {
                 prevProj.copy(proj);
             }
 
-            // suppress rendering till we're ready
             if (!state.readyToRender) {
                 app.renderNextFrame = false;
             }
         });
         graphicsDevice.maxPixelRatio = state.hqMode ? window.devicePixelRatio : 1;
 
-        // initialize the viewer after assets have finished loading
         events.on('loaded', () => this.initialize());
     }
 
-    // Get camera instance by mode
     getCamera(cameraMode) {
         return this.cameras[cameraMode];
     }
 
-    // Reassign controller to ensure input is processed
     assignController() {
         const controller = window.controller;
         const pointerDevice = this.app.graphicsDevice.canvas.__pointerDevice;
@@ -286,23 +310,17 @@ class Viewer {
         console.log("Controller reassigned for mode:", this.state.cameraMode, "inputMode:", this.state.inputMode);
     }
 
-    // initialize the viewer once gsplat asset is finished loading
     initialize() {
         const { app, entity, events, state, settings } = this;
 
-        // get the gsplat
         const gsplat = app.root.findComponent('gsplat');
-
-        // calculate scene bounding box
         const bbox = gsplat?.instance?.meshInstance?.aabb ?? new BoundingBox();
 
-        // override gsplat shader for picking
         const { instance } = gsplat;
         instance.createMaterial({
             fragment: gsplatFS
         });
 
-        // calculate the orbit camera frame position
         const framePose = (() => {
             const sceneSize = bbox.halfExtents.length();
             const distance = sceneSize / Math.sin(entity.camera.fov / 180 * Math.PI * 0.5);
@@ -312,7 +330,6 @@ class Viewer {
             );
         })();
 
-        // calculate the orbit camera reset position
         const resetPose = (() => {
             const { position, target } = this.settings.camera;
             return new Pose().fromLookAt(
@@ -321,66 +338,51 @@ class Viewer {
             );
         })();
 
-        // calculate the user camera start position
         const useReset = settings.camera.position || settings.camera.target || bbox.halfExtents.length() > 100;
         const userStart = new Pose(useReset ? resetPose : framePose);
 
-        // if camera doesn't intersect the scene, assume it's an object we're viewing
         const isObjectExperience = !bbox.containsPoint(userStart.position);
 
-        // set fly speed based on scene size, within reason
-        this.cameras.fly.moveSpeed = 0.05; // Math.max(0.05, Math.min(1, bbox.halfExtents.length() * 0.0001));
+        this.cameras.fly.moveSpeed = 0.05;
 
-        // set the global animation flag
         state.cameraMode = 'fly';
 
-        // initialize activePose
         activePose.copy(userStart);
 
-        // place all user cameras at the start position
         this.cameras.orbit.reset(activePose);
 
         const euler = new Vec3();
         activePose.rotation.getEulerAngles(euler);
-        euler.x = 0; // zero the pitch
-        euler.z = 0; // optional: zero the roll
+        euler.x = 0;
+        euler.z = 0;
         activePose.rotation.setFromEulerAngles(euler.x, euler.y, euler.z);
 
         this.cameras.fly.reset(activePose);
 
-        // create the pointer device
         const pointerDevice = new PointerDevice(app.graphicsDevice.canvas);
-        app.graphicsDevice.canvas.__pointerDevice = pointerDevice; // Store for later access
+        app.graphicsDevice.canvas.__pointerDevice = pointerDevice;
         const controller = new AppController();
 
         window.controller = controller;
 
-        // transition time between cameras
         let cameraTransitionTimer = 0;
-
-        // the previous camera we're transitioning away from
         const prevPose = new Pose();
         let prevCamera = null;
         let prevCameraMode = 'fly';
 
-        // initial controller assignment
         this.assignController();
 
-        // handle input mode changing
         events.on('inputMode:changed', (value, prev) => {
             this.assignController();
         });
 
         app.on('update', (deltaTime) => {
-            // in xr mode we leave the camera alone
             if (app.xr.active) {
                 return;
             }
 
-            // update input controller
             controller.update(deltaTime);
 
-            // remap some desktop inputs based on camera mode
             if (state.cameraMode === 'orbit') {
                 const { value } = controller.desktop.left.inputs[1];
                 controller.left.value[0] -= value[0] * 2;
@@ -394,7 +396,6 @@ class Viewer {
             controller.touch.left.base = [window.innerWidth - 96, window.innerHeight - 96, 0];
             controller.touch.right.base = [96, window.innerHeight - 96, 0];
 
-            // update the active camera
             const input = {
                 move: controller.left,
                 rotate: controller.right,
@@ -402,63 +403,50 @@ class Viewer {
                 isTouch: state.inputMode === 'touch'
             };
 
-          
             const activeCamera = this.getCamera(state.cameraMode);
             activeCamera.update(deltaTime, state.cameraMode !== 'anim' && input);
             activeCamera.getPose(pose);
 
-         
-            // controls have been consumed
             controller.clear();
 
-            // handle smooth transition to target pose
             if (this.targetPose) {
                 this.transitionTimer += deltaTime / this.transitionDuration;
                 if (this.transitionTimer >= this.POISpeed) {
-                    // Transition complete
                     activePose.copy(this.targetPose);
-                    this.getCamera('fly').reset(activePose); // Reset FlyCamera to final pose
-                    this.targetPose = null; // Clear target pose
+                    this.getCamera('fly').reset(activePose);
+                    this.targetPose = null;
                     this.transitionTimer = 0;
-                    cameraTransitionTimer = this.POISpeed; // Ensure camera transition is complete
-                    this.assignController(); // Reassign controller to ensure input
+                    cameraTransitionTimer = this.POISpeed;
+                    this.assignController();
                     console.log("POI transition complete, FlyCamera reset to:", activePose.position);
                 } else {
-                    // Interpolate position and rotation
-                    const t = this.transitionTimer; // Linear interpolation
-                    // Optional easing: const t = 1 - Math.pow(1 - this.transitionTimer, 2); // Ease-out
+                    const t = this.transitionTimer;
                     activePose.position.lerp(activePose.position, this.targetPose.position, t);
                     activePose.rotation.slerp(activePose.rotation, this.targetPose.rotation, t);
                 }
             } else {
-                // Normal camera update
                 if (this.skipUpdate) {
-                    this.skipUpdate = false; // Reset flag
+                    this.skipUpdate = false;
                 } else {
-                    // blend camera smoothly during camera mode transitions
                     if (cameraTransitionTimer < 1) {
                         cameraTransitionTimer = Math.min(1, cameraTransitionTimer + deltaTime / this.cameraTransitionDuration);
 
                         if (cameraTransitionTimer < 1 && prevCamera) {
                             const x = cameraTransitionTimer;
-                            // ease out exponential
                             const norm = 1 - (2 ** -10);
                             const weight = (1 - (2 ** (-10 * x))) / norm;
                             pose.lerp(prevPose, pose, weight);
                         }
                     }
 
-                    // snap camera
                     activePose.copy(pose);
                 }
             }
 
-            // apply to camera
             entity.setPosition(activePose.position);
             entity.setRotation(activePose.rotation);
         });
 
-        // handle camera mode switching
         events.on('cameraMode:changed', (value, prev) => {
             prevCameraMode = prev;
             prevCamera = this.getCamera(prev);
@@ -471,46 +459,34 @@ class Viewer {
                     break;
             }
 
-            // reset camera transition timer
             cameraTransitionTimer = 0;
-
-            // reassign controller
             this.assignController();
         });
 
         events.on('setAnimationTime', (time) => {
             if (this.cameras.anim) {
                 this.cameras.anim.cursor.value = time;
-
-                // switch to animation camera if we're not already there
                 if (state.cameraMode !== 'anim') {
                     state.cameraMode = 'anim';
                 }
             }
         });
 
-        // initialize the camera entity to initial position and kick off the first scene sort
         entity.setPosition(activePose.position);
         entity.setRotation(activePose.rotation);
         gsplat?.instance?.sort(entity);
 
-        // handle gsplat sort updates
         gsplat?.instance?.sorter?.on('updated', () => {
-            // request frame render when sorting changes
             app.renderNextFrame = true;
 
             if (!state.readyToRender) {
-                // we're ready to render once the first sort has completed
                 state.readyToRender = true;
 
-                // wait for the first valid frame to complete rendering
                 const frameHandle = app.on('frameend', () => {
                     frameHandle.off();
-
                     events.fire('firstFrame');
-
-                    // emit first frame event on window
                     window.firstFrame?.();
+                    console.log('First frame rendered, layers:', app.scene.layers.layerList.map(layer => layer.name));
                 });
             }
         });
@@ -528,11 +504,20 @@ const loadContent = (appElement) => {
 
     asset.on('load', () => {
         const entity = asset.resource.instantiate();
+        const worldLayer = app.scene.layers.getLayerByName('World');
+        
+        if (entity.gsplat) {
+            entity.layers = [worldLayer.id];
+            console.log('Gsplat entity assigned to World layer');
+        } else {
+            console.warn('Gsplat entity does not have gsplat component');
+        }
+        
         app.root.addChild(entity);
     });
 
     asset.on('error', (err) => {
-        console.log(err);
+        console.error('Asset loading error:', err);
     });
 
     app.assets.add(asset);
@@ -567,7 +552,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const viewer = new Viewer(app, camera, events, state, settings);
 
-    // wait for gsplat asset to load before initializing the rest
+    const skyAsset = new Asset('skybox', 'texture', {
+        url: './sky.jpg'
+    }, {
+        type: 'rgbp',
+        mipmaps: false,
+        addressu: 'repeat',
+        addressv: 'clamp'
+    });
+
+    skyAsset.on('load', () => {
+        app.scene.envAtlas = skyAsset.resource;
+    });
+
+    app.assets.add(skyAsset);
+    app.assets.load(skyAsset);
+
     const assets = app.assets.filter(asset => asset.type === 'gsplat');
     if (assets.length > 0) {
         const asset = assets[0];
@@ -585,3 +585,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 });
+
+function onHomeClick() {
+    console.log("Home button clicked");
+}
+
+function onAmenitiesClick() {
+    console.log("Amenities button clicked");
+}
+
+function onSurroundingsClick() {
+    console.log("Surroundings button clicked");
+}
+
+function onUnitSearchClick() {
+    console.log("Unit Search button clicked");
+}
+
+function onViewClick() {
+    console.log("View button clicked");
+}
+
+function onFlyClick() {
+    console.log("Fly button clicked");
+}
